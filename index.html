@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>XR Spinosaurus</title>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<!-- import the webpage's stylesheet -->
+	<link rel="stylesheet" href="./style.css">
+
+	<script>
+		// WebXR requires HTTPS, so the site doesn't work if someone manually enters
+		// the URL and ends up using HTTP. To work around this, force redirect from
+		// http to https for non-localhost addresses.
+		if (window.location.protocol == "http:" &&
+				window.location.hostname != "localhost" &&
+				window.location.hostname != "127.0.0.1" &&
+				window.location.hostname != "[::1]") {
+			//window.location = window.location.href.replace('http:', 'https:');
+		}
+	</script>
+
+	<!-- import the webpage's javascript files -->
+	<script src="https://rawgit.com/aframevr/aframe/master/dist/aframe-master.min.js"></script>
+	<script src="https://unpkg.com/aframe-extras@3.3.0/dist/aframe-extras.min.js"></script>
+	<script
+			src="https://unpkg.com/aframe-environment-component@1.1.0/dist/aframe-environment-component.min.js"></script>
+
+	<script>
+		// Define a few custom components useful for AR mode. While these are somewhat reusable,
+		// I recommend checking if there are officially supported alternatives before copying
+		// these into new projects.
+
+		// See also https://github.com/aframevr/aframe/pull/4356
+		AFRAME.registerComponent('hide-in-ar-mode', {
+			// Set this object invisible while in AR mode.
+			init: function () {
+				this.el.sceneEl.addEventListener('enter-vr', (ev) => {
+					this.wasVisible = this.el.getAttribute('visible');
+					if (this.el.sceneEl.is('ar-mode')) {
+						this.el.setAttribute('visible', false);
+					}
+				});
+				this.el.sceneEl.addEventListener('exit-vr', (ev) => {
+					if (this.wasVisible) this.el.setAttribute('visible', true);
+				});
+			}
+		});
+
+		AFRAME.registerComponent('ar-shadows', {
+			// Swap an object's material to a transparent shadows-only material while
+			// in AR mode. Intended for use with a ground plane. The object is also
+			// set visible while in AR mode, this is useful if it's hidden in other
+			// modes due to them using a 3D environment.
+			schema: {
+				opacity: {default: 0.3}
+			},
+			init: function () {
+				this.el.sceneEl.addEventListener('enter-vr', (ev) => {
+					this.wasVisible = this.el.getAttribute('visible');
+					if (this.el.sceneEl.is('ar-mode')) {
+						this.savedMaterial = this.el.object3D.children[0].material;
+						this.el.object3D.children[0].material = new THREE.ShadowMaterial();
+						this.el.object3D.children[0].material.opacity = this.data.opacity;
+						this.el.setAttribute('visible', true);
+					}
+				});
+				this.el.sceneEl.addEventListener('exit-vr', (ev) => {
+					if (this.savedMaterial) {
+						this.el.object3D.children[0].material = this.savedMaterial;
+						this.savedMaterial = null;
+					}
+					if (!this.wasVisible) this.el.setAttribute('visible', false);
+				});
+			}
+		});
+
+		AFRAME.registerComponent('ar-hit-test', {
+			init: function () {
+				this.xrHitTestSource = null;
+				this.viewerSpace = null;
+				this.refSpace = null;
+
+				this.el.sceneEl.renderer.xr.addEventListener('sessionend', (ev) => {
+					this.viewerSpace = null;
+					this.refSpace = null;
+					this.xrHitTestSource = null;
+				});
+				this.el.sceneEl.renderer.xr.addEventListener('sessionstart', (ev) => {
+					let session = this.el.sceneEl.renderer.xr.getSession();
+
+					let element = this.el;
+					session.addEventListener('select', function () {
+						let position = element.getAttribute('position');
+
+						document.getElementById('dino').setAttribute('position', position);
+						document.getElementById('light').setAttribute('position', {
+							x: (position.x - 2),
+							y: (position.y + 4),
+							z: (position.z + 2)
+						});
+					});
+
+					session.requestReferenceSpace('viewer').then((space) => {
+						this.viewerSpace = space;
+						session.requestHitTestSource({space: this.viewerSpace})
+								.then((hitTestSource) => {
+									this.xrHitTestSource = hitTestSource;
+								});
+					});
+
+					session.requestReferenceSpace('local-floor').then((space) => {
+						this.refSpace = space;
+					});
+				});
+			},
+			tick: function () {
+				if (this.el.sceneEl.is('ar-mode')) {
+					if (!this.viewerSpace) return;
+
+					let frame = this.el.sceneEl.frame;
+					let xrViewerPose = frame.getViewerPose(this.refSpace);
+
+					if (this.xrHitTestSource && xrViewerPose) {
+						let hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+						if (hitTestResults.length > 0) {
+							let pose = hitTestResults[0].getPose(this.refSpace);
+
+							let inputMat = new THREE.Matrix4();
+							inputMat.fromArray(pose.transform.matrix);
+
+							let position = new THREE.Vector3();
+							position.setFromMatrixPosition(inputMat);
+							this.el.setAttribute('position', position);
+						}
+					}
+				}
+			}
+		});
+
+	</script>
+</head>
+<body>
+
+<a-scene webxr="requiredFeatures: hit-test,local-floor;">
+	<a-assets>
+		<!-- Model source: https://sketchfab.com/3d-models/spinosaurus-2135501583704537907645bf723685e7
+             Model author: https://sketchfab.com/VapTor
+             Model license: CC Attribution -->
+		<a-asset-item id="spinosaurus"
+					  src="https://cdn.glitch.com/324a5290-5aa7-4efc-92d6-ae0736433b12%2Fspinosaurus.glb"
+					  response-type="arraybuffer"></a-asset-item>
+
+		<a-asset-item id="reticle"
+					  src="reticle.gltf"
+					  response-type="arraybuffer"></a-asset-item>
+	</a-assets>
+
+	<a-camera position="0 1.2 0"></a-camera>
+
+	<!-- Environment for 2D and VR viewing. It's auto-hidden in AR mode. -->
+	<a-entity environment="preset: forest; lighting: none; shadow: none; lightPosition: 0 2.15 0"
+			  hide-in-ar-mode></a-entity>
+
+	<a-entity id="dino" position="-1 0 -3" scale="0.5 0.5 0.5">
+		<a-entity position="0 2.15 0" rotation="0 55 0"
+				  gltf-model="#spinosaurus"
+				  animation-mixer
+				  shadow="cast: true; receive: false"></a-entity>
+
+		<!-- This shadow-receiving plane is only visible in AR mode.-->
+		<a-plane height="30" width="30" rotation="-90 0 0"
+				 shadow="receive: true"
+				 ar-shadows="opacity: 0.2"
+				 visible="false"></a-plane>
+
+	</a-entity>
+
+	<a-entity light="type: hemisphere; intensity: 1"></a-entity>
+	<a-light type="directional"
+			 light="castShadow: true;
+                      shadowMapHeight: 1024;
+                      shadowMapWidth: 1024;
+                      shadowCameraLeft: -7;
+                      shadowCameraRight: 5;
+                      shadowCameraBottom: -5;
+                      shadowCameraTop: 5;"
+			 id="light"
+			 target="dino"
+			 position="-2 4 2">
+	</a-light>
+
+	<a-entity gltf-model="#reticle" scale="0.8 0.8 0.8" ar-hit-test></a-entity>
+</a-scene>
+
+<div id="text">
+	<h1>A-Frame Spinosaurus for VR/AR</h1>
+
+	<p>
+		Model: <a href="https://sketchfab.com/3d-models/spinosaurus-2135501583704537907645bf723685e7">Spinosaurus</a> by
+		<a href="https://sketchfab.com/VapTor">Vaptor-Studio</a>.
+	</p>
+	<p>
+		Size:
+		<button id="btn_full">Full</button>
+		<button id="btn_half">1/2</button>
+		<button id="btn_quarter">1/16</button>
+	</p>
+
+	<p>
+		Try the WebXR's AR mode with an Android phone and Chrome (Beta) v81+.
+	</p>
+</div>
+<script>
+	function setSize(scale) {
+		document.getElementById('dino').setAttribute('scale', {x: scale, y: scale, z: scale});
+	}
+
+	document.getElementById('btn_full').onclick = setSize.bind(this, 1);
+	document.getElementById('btn_half').onclick = setSize.bind(this, 0.5);
+	document.getElementById('btn_quarter').onclick = setSize.bind(this, 0.0625);
+</script>
+</body>
+</html>

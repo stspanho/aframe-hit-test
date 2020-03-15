@@ -1,0 +1,25 @@
+/* CSS files add styling rules to your content */
+
+body {
+	font-family: helvetica, arial, sans-serif;
+	margin: 2em;
+}
+
+h1 {
+	/*  font-style: italic;
+	  color: #373fff;
+	*/
+	font-size: 1.35em;
+}
+
+div#text {
+	position: absolute;
+	left: 6px;
+	top: 6px;
+	padding: 6px;
+	/*
+	text-shadow: 0 0 5px white;
+	*/
+	max-width: 350px;
+	background-color: rgba(255, 255, 255, 0.7)
+}
