@@ -9,6 +9,8 @@ You can read more about this feature here: https://immersive-web.github.io/hit-t
 
 ![](example.gif)
 
+(Note the example is without shadows, because I've have some flickering issues.)
+
 ## The component
 
 ```
