@@ -1,3 +1,7 @@
+# Update
+
+It has been added by default in A-Frame. Check https://medium.com/samsung-internet-dev/use-new-augmented-reality-features-with-just-a-few-lines-of-code-with-webxr-and-aframe-c6f3f5789345
+
 # WebXR hit-testing example
 
 In this example I've used the Spinosaurus example by Klaus Weidner (https://glitch.com/edit/undefined#!/xr-spinosaurus)
